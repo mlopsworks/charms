@@ -6,11 +6,13 @@ base:
     FROM quay.io/testfaster/kube-ubuntu
     ENV cache-bust 5
     RUN touch /root/hello-world.txt
-    # Snap is complicated in here (SELinux stuff). Just download and install
-    # the juju binary.
-    RUN cd /tmp && \
-        wget -q -O /usr/local/bin/juju https://storage.googleapis.com/juju-hacking/juju && \
-        chmod +x /usr/local/bin/juju
+    # https://github.com/PowerShell/PowerShell/issues/9252#issuecomment-486954264
+    RUN apt-get install -y snapd selinux-utils selinux-policy-default
+    RUN echo "SELINUX=disabled" > /etc/selinux/config
+    # https://github.com/systemd/systemd/issues/3374#issuecomment-288882355
+    RUN cp /usr/lib/systemd/network/99-default.link /etc/systemd/network/99-default.link
+    RUN sed -i 's/MACAddressPolicy=persistent/MACAddressPolicy=none/' \
+        /etc/systemd/network/99-default.link
 
   docker_bake_script: |-
     # Do things that cache docker images for faster builds,
@@ -31,12 +33,15 @@ base:
     # already running when you testctl get
     #!/bin/bash
     set -euo pipefail
-    #juju add-k8s testfaster
-    #juju bootstrap testfaster
+    export PATH="/snap/bin:$PATH"
+    #snap install microk8s --classic --channel=1.17/stable
+    #microk8s.enable dns storage
+    #snap install juju --classic
+    #juju bootstrap microk8s micro
 
   # Need kube 1.17 for kubeflow last time I checked (1.18 doesn't work).
   # https://github.com/kubeflow/kubeflow/issues/5246#issuecomment-682013220
-  kubernetes_version: v1.17.11
+  #kubernetes_version: v1.17.11
 
 runtime:
   cpus: 4
